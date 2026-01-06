@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
+import 'dart:math' as math; // Added for min/max calculations
 import 'dart:typed_data';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -48,8 +49,10 @@ class _ECGScreenState extends State<ECGScreen> {
 
   // Pan-Tompkins Processor
   late ECGProcessor _ecgProcessor;
-  final List<int> _rPeakXPositions =
-      []; // X-coordinates of R-peaks for visualization
+  final List<int> _rPeakXPositions = []; // X-coordinates of R-peaks for visualization
+
+  // Stats Tracking
+  final List<double> _bpmHistory = []; // Track BPMs to calculate min/max later
 
   // Screenshot & Storage
   final ECGChartCaptureService _captureService = ECGChartCaptureService();
@@ -97,6 +100,13 @@ class _ECGScreenState extends State<ECGScreen> {
       // Store the session context
       setState(() {
         _sessionContext = sessionContext;
+        // Reset stats for new session
+        _bpmHistory.clear(); 
+        _spots.clear();
+        for (int i = 0; i < _maxPoints; i++) {
+          _spots.add(FlSpot(i.toDouble(), 0));
+        }
+        _xValue = _maxPoints.toDouble();
       });
 
       // Step 2: Now proceed to device pairing
@@ -126,6 +136,7 @@ class _ECGScreenState extends State<ECGScreen> {
     // Reset processor for next session
     _ecgProcessor.reset();
     _rPeakXPositions.clear();
+    _bpmHistory.clear();
     _sessionStartTime = DateTime.now();
   }
 
@@ -208,6 +219,11 @@ class _ECGScreenState extends State<ECGScreen> {
 
             // Calculate real-time BPM from processor
             _currentHeartRate = _ecgProcessor.calculateBPM();
+            
+            // Store BPM for session stats if it's a physiological value
+            if (_currentHeartRate > 30 && _currentHeartRate < 250) {
+              _bpmHistory.add(_currentHeartRate);
+            }
           }
 
           _xValue++;
@@ -466,12 +482,28 @@ class _ECGScreenState extends State<ECGScreen> {
   }
 
   Future<void> _endSessionAndAnalyze() async {
-    // 1. Prepare Summary Data
-    final durationSeconds = (_xValue / 860).round();
-    final double avgHr = durationSeconds > 0
-        ? (_totalRPeaks / durationSeconds) * 60
-        : 0;
+    if (mounted) _showSnackBar("Analyzing session data...");
 
+    // 1. Calculate Real Stats from History
+    final durationSeconds = (_xValue / 860).round();
+    
+    // Accurate calculations using the collected BPM history
+    double avgHr = 0;
+    double maxHr = 0;
+    double minHr = 0;
+
+    if (_bpmHistory.isNotEmpty) {
+      avgHr = _bpmHistory.reduce((a, b) => a + b) / _bpmHistory.length;
+      maxHr = _bpmHistory.reduce(math.max);
+      minHr = _bpmHistory.reduce(math.min);
+    } else if (durationSeconds > 0) {
+      // Fallback if no valid BPM history but we have peaks
+      avgHr = (_totalRPeaks / durationSeconds) * 60;
+      maxHr = avgHr;
+      minHr = avgHr;
+    }
+
+    // Signal Average
     double totalSignal = 0;
     for (var spot in _spots) {
       totalSignal += spot.y;
@@ -480,6 +512,7 @@ class _ECGScreenState extends State<ECGScreen> {
         ? totalSignal / _spots.length
         : 0;
 
+    // 2. Prepare Summary for AI
     final summary = EcgSummary(
       averageHeartRate: avgHr,
       totalRPeaks: _totalRPeaks,
@@ -506,7 +539,7 @@ class _ECGScreenState extends State<ECGScreen> {
         );
       }
 
-      // 4. Save Session
+      // 4. Save Session to DB
       if (userId != null && imageFile != null) {
         final session = ECGSession(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -514,9 +547,11 @@ class _ECGScreenState extends State<ECGScreen> {
           startTime: _sessionStartTime ?? DateTime.now(),
           endTime: DateTime.now(),
           durationSeconds: durationSeconds,
-          samples: [],
+          samples: [], // Not storing raw samples to save DB space
           rPeaks: _ecgProcessor.getDetectedRPeaks(),
           averageHeartRate: avgHr,
+          maxHeartRate: maxHr, // Now saving calculated stats
+          minHeartRate: minHr,
           totalRPeaks: _totalRPeaks,
         );
 
@@ -542,9 +577,15 @@ class _ECGScreenState extends State<ECGScreen> {
         await _captureService.deleteTemporaryImage(imageFile);
       }
 
-      // 7. Navigate to insights if successful
-      if (mounted && report != null) {
-        context.go('/insights', extra: report);
+      // 7. Navigate to Summary Screen
+      if (mounted) {
+        context.go('/ecg/summary', extra: {
+          'avgHr': avgHr,
+          'maxHr': maxHr,
+          'minHr': minHr,
+          'duration': durationSeconds,
+          'report': report,
+        });
       }
     }
   }
