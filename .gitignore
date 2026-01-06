@@ -44,3 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/build/
+
+# Environment variables (API keys, secrets)
+.env
+

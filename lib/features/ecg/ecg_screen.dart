@@ -233,7 +233,6 @@ class _ECGScreenState extends State<ECGScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -472,12 +471,14 @@ class _ECGScreenState extends State<ECGScreen> {
     final double avgHr = durationSeconds > 0
         ? (_totalRPeaks / durationSeconds) * 60
         : 0;
-    
+
     double totalSignal = 0;
     for (var spot in _spots) {
       totalSignal += spot.y;
     }
-    final double avgSignal = _spots.isNotEmpty ? totalSignal / _spots.length : 0;
+    final double avgSignal = _spots.isNotEmpty
+        ? totalSignal / _spots.length
+        : 0;
 
     final summary = EcgSummary(
       averageHeartRate: avgHr,
@@ -492,28 +493,9 @@ class _ECGScreenState extends State<ECGScreen> {
       return;
     }
 
-    // 2. Show Loading Dialog (Persistent)
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text("Saving & Analyzing..."),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
     File? imageFile;
+    String? report;
+
     try {
       // 3. Capture Chart Image
       final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -524,7 +506,7 @@ class _ECGScreenState extends State<ECGScreen> {
         );
       }
 
-      // 4. Save Session (Background)
+      // 4. Save Session
       if (userId != null && imageFile != null) {
         final session = ECGSession(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -537,9 +519,7 @@ class _ECGScreenState extends State<ECGScreen> {
           averageHeartRate: avgHr,
           totalRPeaks: _totalRPeaks,
         );
-        
-        // Save without awaiting to speed up analysis UI? 
-        // No, we should await to ensure data integrity before leaving.
+
         await _storageService.saveSessionWithImage(
           session: session,
           imageFile: imageFile,
@@ -548,26 +528,23 @@ class _ECGScreenState extends State<ECGScreen> {
 
       // 5. Generate Insights (with Image)
       final geminiService = GeminiService();
-      final report = await geminiService.generateConsultation(
+      report = await geminiService.generateConsultation(
         contextForAnalysis,
         summary,
         chartImage: imageFile,
       );
-
-      // 6. Navigate
-      if (mounted) {
-        Navigator.of(context).pop(); // Close dialog
-        context.push('/insights', extra: report);
-      }
     } catch (e) {
       print("Error in analysis flow: $e");
-      if (mounted) Navigator.of(context).pop(); // Close dialog on error
     } finally {
-      // 7. Cleanup
+      // 6. Cleanup
       _disconnect();
       if (imageFile != null) {
-        // Delay deletion slightly or ensure service is done
         await _captureService.deleteTemporaryImage(imageFile);
+      }
+
+      // 7. Navigate to insights if successful
+      if (mounted && report != null) {
+        context.go('/insights', extra: report);
       }
     }
   }

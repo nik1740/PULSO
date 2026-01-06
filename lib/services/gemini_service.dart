@@ -6,16 +6,17 @@ import '../models/ecg_summary.dart';
 import 'dart:io';
 
 class GeminiService {
-  // TODO: Replace with your actual key or use --dart-define=GEMINI_API_KEY=...
-  static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: ''); 
+  // API key should be provided via --dart-define=GEMINI_API_KEY=your_key
+  // See SETUP.md for configuration instructions
+  static const String _apiKey = String.fromEnvironment(
+    'GEMINI_API_KEY',
+    defaultValue: '',
+  );
 
   late final GenerativeModel _model;
 
   GeminiService() {
-    _model = GenerativeModel(
-      model: 'gemini-1.5-flash',
-      apiKey: _apiKey,
-    );
+    _model = GenerativeModel(model: 'gemini-2.0-flash-exp', apiKey: _apiKey);
   }
 
   Future<String> generateConsultation(
@@ -24,7 +25,7 @@ class GeminiService {
     File? chartImage,
   }) async {
     if (_apiKey.isEmpty) {
-      return "Error: Gemini API Key is missing. Please provide it via --dart-define=GEMINI_API_KEY=YOUR_KEY or hardcode it in gemini_service.dart.";
+      return "Error: Gemini API Key is missing. Please see SETUP.md for configuration instructions.";
     }
 
     final promptText = _buildPrompt(context, summary);
@@ -38,14 +39,21 @@ class GeminiService {
         print("Error reading chart image: $e");
       }
     }
-    
+
     try {
       final response = await _model.generateContent([
-        Content.multi(contentParts.map((e) {
-          if (e.parts.first is TextPart) return TextPart((e.parts.first as TextPart).text);
-          if (e.parts.first is DataPart) return DataPart((e.parts.first as DataPart).mimeType, (e.parts.first as DataPart).bytes);
-          return TextPart(''); // Fallback
-        }).toList())
+        Content.multi(
+          contentParts.map((e) {
+            if (e.parts.first is TextPart)
+              return TextPart((e.parts.first as TextPart).text);
+            if (e.parts.first is DataPart)
+              return DataPart(
+                (e.parts.first as DataPart).mimeType,
+                (e.parts.first as DataPart).bytes,
+              );
+            return TextPart(''); // Fallback
+          }).toList(),
+        ),
       ]);
       return response.text ?? "Unable to generate insights at this time.";
     } catch (e) {
