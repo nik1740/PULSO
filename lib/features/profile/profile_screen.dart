@@ -112,12 +112,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             // Settings Sections
             _buildSectionHeader(AppStrings.medicalProfileHeader),
+            // ... inside _buildSectionHeader ...
             _buildSettingItem(AppStrings.knownConditions, conditions),
-            _buildSettingItem(AppStrings.medications, AppStrings.none), // Placeholder for now
+            _buildSettingItem(AppStrings.medications, AppStrings.none), 
             _buildSettingItem(
               AppStrings.emergencyContact,
-              "+1 555-0123",
-            ), // Placeholder
+              "Not Set", // Removed hardcoded phone number
+            ),
+
 
             const SizedBox(height: 24),
             _buildSectionHeader(AppStrings.appSettingsHeader),

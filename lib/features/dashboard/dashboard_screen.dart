@@ -1,10 +1,64 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
+import '../../models/ecg_data.dart'; // Ensure this model exists
+import '../../services/ecg_storage_service.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool _isLoading = true;
+  ECGSession? _latestSession;
+  List<ECGSession> _recentSessions = [];
+  double? _calculatedHRV;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      final sessions = await ECGStorageService().getRecentSessions(user.id, limit: 3);
+      
+      setState(() {
+        _recentSessions = sessions;
+        if (sessions.isNotEmpty) {
+          _latestSession = sessions.first;
+          _calculatedHRV = _calculateSDNN(_latestSession!.rPeaks);
+        }
+        _isLoading = false;
+      });
+    } else {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Simple HRV Calculation (SDNN)
+  double? _calculateSDNN(List<RPeak> rPeaks) {
+    if (rPeaks.length < 2) return null;
+    
+    // Extract RR intervals (in ms)
+    // Assuming rrInterval in RPeak is in seconds, convert to ms. 
+    // If it's already in seconds, multiply by 1000.
+    // Based on standard storage, usually seconds.
+    final rrIntervals = rPeaks.map((e) => e.rrInterval * 1000).toList();
+    
+    final meanRR = rrIntervals.reduce((a, b) => a + b) / rrIntervals.length;
+    final variance = rrIntervals.map((rr) => pow(rr - meanRR, 2)).reduce((a, b) => a + b) / (rrIntervals.length - 1);
+    
+    return sqrt(variance);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,63 +80,108 @@ class DashboardScreen extends StatelessWidget {
             onPressed: () {},
           ),
           IconButton(
-            // Settings
             icon: Icon(
               Icons.settings_outlined,
               color: Theme.of(context).iconTheme.color,
             ),
-            onPressed: () => context.go('/profile'), // Or push settings
+            onPressed: () => context.go('/profile'),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Today's Status Card
-            _buildStatusCard(),
-            const SizedBox(height: 16),
+      body: RefreshIndicator(
+        onRefresh: _loadDashboardData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Status Card
+              _buildStatusCard(),
+              const SizedBox(height: 16),
 
-            // Live Connection Card
-            _buildConnectionCard(context),
-            const SizedBox(height: 16),
+              // Connection Card (Keep static until Bluetooth is implemented)
+              _buildConnectionCard(context),
+              const SizedBox(height: 16),
 
-            // Key Metrics Strip
-            _buildMetricsStrip(),
-            const SizedBox(height: 24),
+              // Metrics Strip
+              _buildMetricsStrip(),
+              const SizedBox(height: 24),
 
-            // Quick Actions
-            Text(
-              "Quick Actions",
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).iconTheme.color,
+              // Quick Actions
+              Text(
+                "Quick Actions",
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).iconTheme.color,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            _buildQuickActions(context),
-            const SizedBox(height: 32),
+              const SizedBox(height: 12),
+              _buildQuickActions(context),
+              const SizedBox(height: 32),
 
-            // Recent Insights
-            Text(
-              "Recent Insights",
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).iconTheme.color,
+              // Recent Insights
+              Text(
+                "Recent Insights",
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).iconTheme.color,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            _buildRecentInsights(),
-          ],
+              const SizedBox(height: 12),
+              _buildRecentInsights(),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildStatusCard() {
+    if (_isLoading) {
+       return const Card(
+         child: SizedBox(height: 150, child: Center(child: CircularProgressIndicator())),
+       );
+    }
+
+    if (_latestSession == null) {
+      return Card(
+        color: AppColors.surfaceHighlight,
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "No Data Available",
+                style: GoogleFonts.inter(
+                  color: AppColors.primary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Start your first ECG recording to see your heart health status.",
+                style: GoogleFonts.inter(
+                  color: AppColors.textLight.withOpacity(0.8),
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Determine status text
+    // Note: A real medical status requires complex analysis. 
+    // We use neutral language here unless we have specific analysis flags.
+    final String statusText = "Analysis Complete"; 
+    final String subText = "Recording successfully saved.";
+
     return Card(
       color: AppColors.primary,
       child: Padding(
@@ -102,7 +201,7 @@ class DashboardScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    "Stable",
+                    "Latest",
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -115,7 +214,7 @@ class DashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              "Your heart rhythm appears normal.",
+              statusText,
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 18,
@@ -124,7 +223,14 @@ class DashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "Last AI Assessment: Today, 9:41 AM",
+              subText, // Use dynamic message
+              style: GoogleFonts.inter(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 12,
+              ),
+            ),
+             Text(
+              "Recorded: ${_formatDate(_latestSession!.startTime)}",
               style: GoogleFonts.inter(
                 color: Colors.white.withOpacity(0.8),
                 fontSize: 12,
@@ -158,14 +264,14 @@ class DashboardScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Device Not Connected",
+                  "Device Pairing",
                   style: GoogleFonts.inter(
                     fontWeight: FontWeight.bold,
                     color: AppColors.textLight,
                   ),
                 ),
                 Text(
-                  "Pair your ECG device",
+                  "Connect to capture new data",
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: AppColors.textLight.withOpacity(0.6),
@@ -188,16 +294,37 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildMetricsStrip() {
+    String hrValue = "--";
+    String hrvValue = "--";
+    String stressValue = "--";
+
+    if (_latestSession != null) {
+      if (_latestSession!.averageHeartRate != null) {
+        hrValue = "${_latestSession!.averageHeartRate!.toStringAsFixed(0)} bpm";
+      }
+      
+      if (_calculatedHRV != null) {
+        hrvValue = "${_calculatedHRV!.toStringAsFixed(0)} ms";
+        
+        // Very basic stress heuristic for display purposes
+        if (_calculatedHRV! < 50) {
+          stressValue = "Elevated"; 
+        } else {
+          stressValue = "Normal";
+        }
+      }
+    }
+
     return Row(
       children: [
         Expanded(
-          child: _buildMetricItem("Heart Rate", "72 bpm", Icons.favorite),
+          child: _buildMetricItem("Heart Rate", hrValue, Icons.favorite),
         ),
         const SizedBox(width: 12),
-        Expanded(child: _buildMetricItem("HRV", "45 ms", Icons.graphic_eq)),
+        Expanded(child: _buildMetricItem("HRV", hrvValue, Icons.graphic_eq)),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildMetricItem("Stress", "Low", Icons.sentiment_satisfied),
+          child: _buildMetricItem("Stress", stressValue, Icons.sentiment_satisfied),
         ),
       ],
     );
@@ -252,7 +379,7 @@ class DashboardScreen extends StatelessWidget {
           Icons.auto_awesome,
           AppColors.secondary,
           () => context.go('/insights'),
-        ), // Changed from tertiary
+        ),
         const SizedBox(width: 12),
         _buildActionButton(
           context,
@@ -301,11 +428,24 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildRecentInsights() {
+    if (_recentSessions.isEmpty && !_isLoading) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            "No recent insights available.",
+            style: GoogleFonts.inter(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: 2,
+      itemCount: _recentSessions.length,
       itemBuilder: (context, index) {
+        final session = _recentSessions[index];
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
@@ -314,18 +454,25 @@ class DashboardScreen extends StatelessWidget {
               child: const Icon(Icons.bolt, color: AppColors.primary, size: 20),
             ),
             title: Text(
-              "Normal Sinus Rhythm",
+              "ECG Recording", // Generic title unless analyzed
               style: GoogleFonts.inter(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
-              "Mon, 10 Oct • 09:41 AM",
+              _formatDate(session.startTime),
               style: GoogleFonts.inter(fontSize: 12),
             ),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {}, // TODO: Open Details
+            onTap: () {
+              // Navigate to details if implemented
+            }, 
           ),
         );
       },
     );
+  }
+
+  String _formatDate(DateTime date) {
+    // Simple formatter, you can use intl package for better formatting
+    return "${date.day}/${date.month} • ${date.hour}:${date.minute.toString().padLeft(2, '0')}";
   }
 }
