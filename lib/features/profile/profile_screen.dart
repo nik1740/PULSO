@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/theme.dart';
+import '../../core/app_strings.dart';
 import '../../services/auth_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -39,25 +39,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: AppColors.backgroundLight,
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
         ),
       );
     }
 
     final user = _profileData?['user'];
     final medical = _profileData?['medical'];
-    final name = user?['name'] ?? 'User';
-    final age = medical?['age_at_record']?.toString() ?? '--';
-    final gender = medical?['gender'] ?? '--';
-    final conditions = medical?['existing_conditions'] ?? 'None';
+    final name = user?['name'] ?? AppStrings.defaultUserName;
+    final age = medical?['age_at_record']?.toString() ?? AppStrings.notAvailable;
+    final gender = medical?['gender'] ?? AppStrings.notAvailable;
+    final conditions = medical?['existing_conditions'] ?? AppStrings.none;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "Profile",
+          AppStrings.profileTitle,
           style: GoogleFonts.inter(
             fontWeight: FontWeight.bold,
             color: Theme.of(context).textTheme.titleLarge?.color,
@@ -83,11 +83,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   CircleAvatar(
                     radius: 50,
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
                     child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                      name.isNotEmpty ? name[0].toUpperCase() : AppStrings.defaultUserInitial,
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.onPrimary,
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
                       ),
@@ -103,7 +103,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   Text(
                     "$gender, $age yrs",
-                    style: GoogleFonts.inter(color: Colors.grey),
+                    style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                   ),
                 ],
               ),
@@ -111,33 +111,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 32),
 
             // Settings Sections
-            _buildSectionHeader("Medical Profile"),
-            _buildSettingItem("Known Conditions", conditions),
-            _buildSettingItem("Medications", "None"), // Placeholder for now
+            _buildSectionHeader(AppStrings.medicalProfileHeader),
+            _buildSettingItem(AppStrings.knownConditions, conditions),
+            _buildSettingItem(AppStrings.medications, AppStrings.none), // Placeholder for now
             _buildSettingItem(
-              "Emergency Contact",
+              AppStrings.emergencyContact,
               "+1 555-0123",
             ), // Placeholder
 
             const SizedBox(height: 24),
-            _buildSectionHeader("App Settings"),
-            _buildSwitchItem("Notifications", true),
-            _buildSwitchItem("Dark Mode", false), // Logic to be implemented
-            _buildActionItem("Privacy & Security", Icons.lock_outline),
-            _buildActionItem("Help & Support", Icons.help_outline),
+            _buildSectionHeader(AppStrings.appSettingsHeader),
+            _buildSwitchItem(AppStrings.notifications, true),
+            _buildSwitchItem(AppStrings.darkMode, false), // Logic to be implemented
+            _buildActionItem(AppStrings.privacySecurity, Icons.lock_outline),
+            _buildActionItem(AppStrings.helpSupport, Icons.help_outline),
 
             const SizedBox(height: 32),
             OutlinedButton(
               onPressed: _logout,
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
+                foregroundColor: Theme.of(context).colorScheme.error,
+                side: BorderSide(color: Theme.of(context).colorScheme.error),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 40,
                   vertical: 16,
                 ),
               ),
-              child: const Text("Log Out"),
+              child: const Text(AppStrings.logOut),
             ),
             const SizedBox(height: 32),
           ],
@@ -177,7 +177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           constraints: const BoxConstraints(maxWidth: 200),
           child: Text(
             value,
-            style: GoogleFonts.inter(color: Colors.grey),
+            style: GoogleFonts.inter(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -195,7 +195,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         value: value,
         onChanged: (v) {},
-        activeThumbColor: AppColors.primary,
+        activeThumbColor: Theme.of(context).colorScheme.primary,
       ),
     );
   }
