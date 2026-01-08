@@ -190,3 +190,40 @@ class ECGSession {
     );
   }
 }
+
+class AnalysisResult {
+  final int analysisId;
+  final int readingId;
+  final String prediction;
+  final double confidenceScore;
+  final String? riskLevel;
+  final List<String>? recommendations;
+  final String? diagnosisSummary;
+  final DateTime createdAt;
+
+  AnalysisResult({
+    required this.analysisId,
+    required this.readingId,
+    required this.prediction,
+    required this.confidenceScore,
+    this.riskLevel,
+    this.recommendations,
+    this.diagnosisSummary,
+    required this.createdAt,
+  });
+
+  factory AnalysisResult.fromJson(Map<String, dynamic> json) {
+    return AnalysisResult(
+      analysisId: json['analysis_id'] as int,
+      readingId: json['reading_id'] as int,
+      prediction: json['prediction'] as String,
+      confidenceScore: (json['confidence_score'] as num).toDouble(),
+      riskLevel: json['risk_level'] as String?,
+      recommendations: (json['recommendations'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      diagnosisSummary: json['diagnosis_summary'] as String?,
+      createdAt: DateTime.parse(json['created_at'] as String),
+    );
+  }
+}

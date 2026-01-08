@@ -23,7 +23,8 @@ dependencies:
 
   # Bluetooth & Permissions
   permission_handler: ^11.3.0
-  flutter_bluetooth_serial: ^0.4.0
+  flutter_bluetooth_serial:
+    path: packages/flutter_bluetooth_serial
 
   # UI & Charts
   fl_chart: ^0.66.0

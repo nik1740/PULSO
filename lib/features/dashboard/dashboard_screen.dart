@@ -1,10 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
+import '../../services/ecg_storage_service.dart';
+import '../../models/ecg_data.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final ECGStorageService _storageService = ECGStorageService();
+  ECGSession? _lastSession;
+  bool _isLoading = true;
+  String _authStatus = "Checking...";
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDashboardData();
+  }
+
+  Future<void> _fetchDashboardData() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      try {
+        // Fetch only the latest session
+        final sessions = await _storageService.getRecentSessions(
+          user.id,
+          limit: 1,
+        );
+        if (mounted) {
+          setState(() {
+            _lastSession = sessions.isNotEmpty ? sessions.first : null;
+            _isLoading = false;
+            _authStatus = "Ready";
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _authStatus = "Error loading data";
+          });
+        }
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _authStatus = "Not Authenticated";
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,65 +79,94 @@ class DashboardScreen extends StatelessWidget {
             onPressed: () {},
           ),
           IconButton(
-            // Settings
             icon: Icon(
               Icons.settings_outlined,
               color: Theme.of(context).iconTheme.color,
             ),
-            onPressed: () => context.go('/profile'), // Or push settings
+            onPressed: () => context.go('/profile'),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Today's Status Card
-            _buildStatusCard(),
-            const SizedBox(height: 16),
+      body: RefreshIndicator(
+        onRefresh: _fetchDashboardData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Today's Status Card
+              _buildStatusCard(),
+              const SizedBox(height: 16),
 
-            // Live Connection Card
-            _buildConnectionCard(context),
-            const SizedBox(height: 16),
+              // Live Connection Card
+              _buildConnectionCard(context),
+              const SizedBox(height: 16),
 
-            // Key Metrics Strip
-            _buildMetricsStrip(),
-            const SizedBox(height: 24),
+              // Key Metrics Strip
+              _buildMetricsStrip(),
+              const SizedBox(height: 24),
 
-            // Quick Actions
-            Text(
-              "Quick Actions",
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).iconTheme.color,
+              // Quick Actions
+              Text(
+                "Quick Actions",
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).iconTheme.color,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            _buildQuickActions(context),
-            const SizedBox(height: 32),
+              const SizedBox(height: 12),
+              _buildQuickActions(context),
+              const SizedBox(height: 32),
 
-            // Recent Insights
-            Text(
-              "Recent Insights",
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).iconTheme.color,
+              // Recent Insights
+              Text(
+                "Recent Insights",
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).iconTheme.color,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            _buildRecentInsights(),
-          ],
+              const SizedBox(height: 12),
+              _buildRecentInsights(),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildStatusCard() {
+    // Logic to determine status from last session (mock logic for now if no analysis data in session model)
+    // Ideally, ECGSession should have an 'analysisResult' field, but for now we check basic metrics
+    String status = "No Data";
+    String message = "Start your first recording.";
+    Color color = Colors.grey;
+    IconData icon = Icons.info_outline;
+
+    if (_isLoading) {
+      status = "Loading...";
+      message = "Fetching latest data...";
+    } else if (_lastSession != null) {
+      // Simple heuristic: if HR is within normal range (60-100)
+      final hr = _lastSession!.averageHeartRate ?? 0;
+      if (hr >= 60 && hr <= 100) {
+        status = "Stable";
+        message = "Your heart rhythm appears normal.";
+        color = AppColors.success; // Assuming green
+        icon = Icons.check_circle_outline;
+      } else {
+        status = "Attention";
+        message = "Heart rate irregularity detected.";
+        color = AppColors.error; // Assuming red/orange
+        icon = Icons.warning_amber_rounded;
+      }
+    }
+
     return Card(
-      color: AppColors.primary,
+      color: _lastSession != null ? color : Colors.grey[800],
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
@@ -102,7 +184,7 @@ class DashboardScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    "Stable",
+                    status,
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -110,12 +192,12 @@ class DashboardScreen extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                const Icon(Icons.check_circle_outline, color: Colors.white),
+                Icon(icon, color: Colors.white),
               ],
             ),
             const SizedBox(height: 12),
             Text(
-              "Your heart rhythm appears normal.",
+              message,
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 18,
@@ -124,7 +206,9 @@ class DashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "Last AI Assessment: Today, 9:41 AM",
+              _lastSession != null
+                  ? "Last Assessment: ${_formatDate(_lastSession!.startTime)}"
+                  : "Last Assessment: --",
               style: GoogleFonts.inter(
                 color: Colors.white.withOpacity(0.8),
                 fontSize: 12,
@@ -134,6 +218,11 @@ class DashboardScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    // Simple formatter, can use intl package later
+    return "${date.day}/${date.month} ${date.hour}:${date.minute.toString().padLeft(2, '0')}";
   }
 
   Widget _buildConnectionCard(BuildContext context) {
@@ -158,7 +247,7 @@ class DashboardScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Device Not Connected",
+                  "Status: $_authStatus", // Debug info for user
                   style: GoogleFonts.inter(
                     fontWeight: FontWeight.bold,
                     color: AppColors.textLight,
@@ -175,7 +264,7 @@ class DashboardScreen extends StatelessWidget {
             ),
             const Spacer(),
             TextButton(
-              onPressed: () {}, // TODO: Open Pairing
+              onPressed: () => context.push('/ecg/pairing'),
               child: Text(
                 "Connect",
                 style: GoogleFonts.inter(fontWeight: FontWeight.w600),
@@ -188,16 +277,23 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildMetricsStrip() {
+    // Extract real metrics
+    String bpm = "--";
+    String hrv = "--"; // Not yet calculated in session model
+    String stress = "Low"; // Placeholder until connected to Questionnaire
+
+    if (_lastSession?.averageHeartRate != null) {
+      bpm = "${_lastSession!.averageHeartRate!.toInt()} bpm";
+    }
+
     return Row(
       children: [
-        Expanded(
-          child: _buildMetricItem("Heart Rate", "72 bpm", Icons.favorite),
-        ),
+        Expanded(child: _buildMetricItem("Heart Rate", bpm, Icons.favorite)),
         const SizedBox(width: 12),
-        Expanded(child: _buildMetricItem("HRV", "45 ms", Icons.graphic_eq)),
+        Expanded(child: _buildMetricItem("HRV", hrv, Icons.graphic_eq)),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildMetricItem("Stress", "Low", Icons.sentiment_satisfied),
+          child: _buildMetricItem("Stress", stress, Icons.sentiment_satisfied),
         ),
       ],
     );
@@ -251,8 +347,11 @@ class DashboardScreen extends StatelessWidget {
           "Consult AI",
           Icons.auto_awesome,
           AppColors.secondary,
-          () => context.go('/insights'),
-        ), // Changed from tertiary
+          () => context.go(
+            '/insights',
+            extra: _lastSession?.id,
+          ), // Might need argument
+        ),
         const SizedBox(width: 12),
         _buildActionButton(
           context,
@@ -301,31 +400,38 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildRecentInsights() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: 2,
-      itemBuilder: (context, index) {
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: AppColors.primary.withOpacity(0.1),
-              child: const Icon(Icons.bolt, color: AppColors.primary, size: 20),
-            ),
-            title: Text(
-              "Normal Sinus Rhythm",
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text(
-              "Mon, 10 Oct • 09:41 AM",
-              style: GoogleFonts.inter(fontSize: 12),
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {}, // TODO: Open Details
+    if (_lastSession == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            "No recent sessions found",
+            style: GoogleFonts.inter(color: Colors.grey),
           ),
-        );
-      },
+        ),
+      );
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: AppColors.primary.withOpacity(0.1),
+          child: const Icon(Icons.bolt, color: AppColors.primary, size: 20),
+        ),
+        title: Text(
+          "ECG Session #${_lastSession!.id}",
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          _formatDate(_lastSession!.startTime),
+          style: GoogleFonts.inter(fontSize: 12),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {
+          // TODO: Navigate to insights details
+        },
+      ),
     );
   }
 }

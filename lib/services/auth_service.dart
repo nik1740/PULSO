@@ -95,6 +95,7 @@ class AuthService {
       throw Exception('Google Sign-In failed: ${e.toString()}');
     }
   }
+
   // Get current user profile with secure ID check
   Future<Map<String, dynamic>?> fetchCurrentUserProfile() async {
     final user = _supabase.auth.currentUser;
@@ -114,11 +115,8 @@ class AuthService {
           .select()
           .eq('user_id', user.id)
           .maybeSingle();
-      
-      return {
-        'user': userData,
-        'medical': medicalData,
-      };
+
+      return {'user': userData, 'medical': medicalData};
     } catch (e) {
       print('Error fetching profile: $e');
       return null;
@@ -140,6 +138,31 @@ class AuthService {
     } catch (e) {
       return false;
     }
+  }
+
+  // Update user profile and medical history
+  Future<void> updateProfile({
+    required String name,
+    required int age,
+    required String gender,
+    required String conditions,
+    required String medications,
+    required String emergencyContact,
+  }) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('No user logged in');
+
+    // 1. Update basic user info
+    await _supabase.from('users').upsert({'user_id': user.id, 'name': name});
+
+    // 2. Update medical history
+    await _supabase.from('medical_history').upsert({
+      'user_id': user.id,
+      'age_at_record': age,
+      'gender': gender,
+      'existing_conditions': conditions,
+      'current_medications': medications,
+    }, onConflict: 'user_id');
   }
 
   // Sign out

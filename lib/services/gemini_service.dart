@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../models/session_context.dart';
 import '../models/ecg_summary.dart';
@@ -44,13 +43,15 @@ class GeminiService {
       final response = await _model.generateContent([
         Content.multi(
           contentParts.map((e) {
-            if (e.parts.first is TextPart)
+            if (e.parts.first is TextPart) {
               return TextPart((e.parts.first as TextPart).text);
-            if (e.parts.first is DataPart)
+            }
+            if (e.parts.first is DataPart) {
               return DataPart(
                 (e.parts.first as DataPart).mimeType,
                 (e.parts.first as DataPart).bytes,
               );
+            }
             return TextPart(''); // Fallback
           }).toList(),
         ),

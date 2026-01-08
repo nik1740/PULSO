@@ -1,10 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
+import '../../services/ecg_storage_service.dart';
+import '../../models/ecg_data.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
+
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  final ECGStorageService _storageService = ECGStorageService();
+  List<ECGSession> _sessions = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchHistory();
+  }
+
+  Future<void> _fetchHistory() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      try {
+        final sessions = await _storageService.getRecentSessions(
+          user.id,
+          limit: 10,
+        );
+        if (mounted) {
+          setState(() {
+            _sessions = sessions;
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,29 +62,46 @@ class HistoryScreen extends StatelessWidget {
           "History",
           style: GoogleFonts.inter(
             fontWeight: FontWeight.bold,
-            color: AppColors.textLight,
+            color: Theme.of(
+              context,
+            ).textTheme.titleLarge?.color, // Consistent theme
           ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.filter_list, color: AppColors.textLight),
-            onPressed: () {},
+            icon: Icon(Icons.refresh, color: Theme.of(context).iconTheme.color),
+            onPressed: () {
+              setState(() => _isLoading = true);
+              _fetchHistory();
+            },
           ),
         ],
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(16.0),
-        itemCount: 10,
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          return _buildHistoryItem(context, index);
-        },
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _sessions.isEmpty
+          ? Center(
+              child: Text(
+                "No recordings found",
+                style: GoogleFonts.inter(color: Colors.grey),
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: _sessions.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                return _buildHistoryItem(context, _sessions[index]);
+              },
+            ),
     );
   }
 
-  Widget _buildHistoryItem(BuildContext context, int index) {
-    bool isAbnormal = index % 5 == 2; // Mock data logic
+  Widget _buildHistoryItem(BuildContext context, ECGSession session) {
+    // Determine status (Mock logic until Analysis Result is linked)
+    bool isAbnormal = false;
+    final hr = session.averageHeartRate ?? 0;
+    if (hr < 60 || hr > 100) isAbnormal = true;
 
     return Card(
       child: ListTile(
@@ -46,17 +111,12 @@ class HistoryScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: isAbnormal
                 ? AppColors.error.withOpacity(0.1)
-                : AppColors.surfaceHighlight.withOpacity(
-                    0.2,
-                  ), // Neutral/Pink for normal
+                : AppColors.success.withOpacity(0.1),
             shape: BoxShape.circle,
           ),
           child: Icon(
             Icons.monitor_heart,
-            color: isAbnormal
-                ? AppColors.error
-                : AppColors
-                      .primary, // Using primary text color or similar for normal to stay on brand
+            color: isAbnormal ? AppColors.error : AppColors.success,
           ),
         ),
         title: Text(
@@ -68,7 +128,7 @@ class HistoryScreen extends StatelessWidget {
           children: [
             const SizedBox(height: 4),
             Text(
-              "Oct ${12 - index}, 2025 • 30s Recording",
+              "${_formatDate(session.startTime)} • ${session.durationSeconds}s",
               style: GoogleFonts.inter(fontSize: 12),
             ),
             if (isAbnormal)
@@ -85,12 +145,17 @@ class HistoryScreen extends StatelessWidget {
               ),
           ],
         ),
-        trailing: const Icon(Icons.chevron_right, color: AppColors.textLight),
+        trailing: const Icon(Icons.chevron_right),
         onTap: () {
-          // Navigate to full report (reuse detailed report for now)
-          context.go('/insights/report');
+          // Pass the session ID to insights screen
+          // Use extra or query params
+          context.push('/insights', extra: session.id);
         },
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return "${date.day}/${date.month} ${date.hour}:${date.minute.toString().padLeft(2, '0')}";
   }
 }

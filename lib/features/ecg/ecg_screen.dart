@@ -17,7 +17,7 @@ import '../../services/ecg_storage_service.dart';
 import '../../models/ecg_data.dart';
 import '../../models/session_context.dart';
 import '../../services/session_context_service.dart';
-import '../../services/gemini_service.dart';
+import '../../services/api_service.dart';
 import '../../models/ecg_summary.dart';
 
 class ECGScreen extends StatefulWidget {
@@ -497,54 +497,73 @@ class _ECGScreenState extends State<ECGScreen> {
     String? report;
 
     try {
-      // 3. Capture Chart Image
+      // 3. Capture Chart Image (Optional)
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId != null) {
-        imageFile = await _captureService.captureChart(
-          userId: userId,
-          sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
-        );
-      }
+        try {
+          imageFile = await _captureService.captureChart(
+            userId: userId,
+            sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+          );
+        } catch (e) {
+          print("Image capture failed: $e");
+          // Proceed without image
+        }
 
-      // 4. Save Session
-      if (userId != null && imageFile != null) {
+        // 4. Save Session
+        int? readingId;
         final session = ECGSession(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           userId: userId,
           startTime: _sessionStartTime ?? DateTime.now(),
           endTime: DateTime.now(),
           durationSeconds: durationSeconds,
-          samples: [],
+          samples: [], // Store empty to save bandwidth, or implement if needed
           rPeaks: _ecgProcessor.getDetectedRPeaks(),
           averageHeartRate: avgHr,
           totalRPeaks: _totalRPeaks,
         );
 
-        await _storageService.saveSessionWithImage(
-          session: session,
-          imageFile: imageFile,
-        );
-      }
+        if (imageFile != null) {
+          readingId = await _storageService.saveSessionWithImage(
+            session: session,
+            imageFile: imageFile,
+          );
+        } else {
+          readingId = await _storageService.saveSession(session);
+        }
 
-      // 5. Generate Insights (with Image)
-      final geminiService = GeminiService();
-      report = await geminiService.generateConsultation(
-        contextForAnalysis,
-        summary,
-        chartImage: imageFile,
-      );
+        // 5. Generate Insights (Trigger Backend)
+        if (readingId != null) {
+          print("Session saved with ID: $readingId. Triggering analysis...");
+          try {
+            final apiService = ApiService();
+            await apiService.analyzeSession(readingId.toString());
+            print("Analysis triggered successfully.");
+          } catch (e) {
+            print("Analysis trigger failed: $e");
+            // We continue to Insights screen even if analysis trigger fails,
+            // as the screen handles "loading" or "not ready" states.
+          }
+        } else {
+          print("Failed to save session to Supabase");
+          if (mounted) _showSnackBar("Failed to save session");
+        }
+
+        // 7. Navigate to insights if successful
+        if (mounted && readingId != null) {
+          // Pass the reading ID string as expected by insights_screen.dart
+          context.go('/insights', extra: readingId.toString());
+        }
+      }
     } catch (e) {
       print("Error in analysis flow: $e");
+      if (mounted) _showSnackBar("Error saving session: $e");
     } finally {
       // 6. Cleanup
       _disconnect();
       if (imageFile != null) {
         await _captureService.deleteTemporaryImage(imageFile);
-      }
-
-      // 7. Navigate to insights if successful
-      if (mounted && report != null) {
-        context.go('/insights', extra: report);
       }
     }
   }

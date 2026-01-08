@@ -60,7 +60,7 @@ class ECGChartCaptureService {
       if (imageBytes == null) return null;
 
       final Directory tempDir = await getTemporaryDirectory();
-      final String fileName = 'ecg_${userId}_${sessionId}.png';
+      final String fileName = 'ecg_${userId}_$sessionId.png';
       final String filePath = '${tempDir.path}/$fileName';
 
       final File imageFile = File(filePath);

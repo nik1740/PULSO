@@ -73,7 +73,8 @@ class AppRouter {
                   GoRoute(
                     path: 'premonitoring',
                     parentNavigatorKey: _rootNavigatorKey, // Full screen
-                    builder: (context, state) => const PreMonitoringQuestionnaireScreen(),
+                    builder: (context, state) =>
+                        const PreMonitoringQuestionnaireScreen(),
                   ),
                   GoRoute(
                     path: 'pairing',
@@ -96,8 +97,8 @@ class AppRouter {
               GoRoute(
                 path: '/insights',
                 builder: (context, state) {
-                  final report = state.extra as String?;
-                  return InsightsScreen(consultationReport: report);
+                  final readingId = state.extra as String?;
+                  return InsightsScreen(readingId: readingId);
                 },
                 routes: [
                   GoRoute(
