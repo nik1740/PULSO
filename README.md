@@ -2,6 +2,14 @@
 
 A minimally invasive heart monitoring system that leverages AI-powered ECG analysis for accessible cardiac health monitoring.
 
+## 🎬 Promo Video
+
+[![PULSO Promo Video](https://img.youtube.com/vi/sxMXJyR7pvI/0.jpg)](https://www.youtube.com/watch?v=sxMXJyR7pvI)
+
+▶️ **[Watch our promo video on YouTube](https://www.youtube.com/watch?v=sxMXJyR7pvI)**
+
+---
+
 ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
 ![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
@@ -117,33 +125,33 @@ The **ADS1115** provides high-resolution analog-to-digital conversion, essential
 ### 🔌 Wiring Connections
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    POWER DISTRIBUTION                           │
-├─────────────────────────────────────────────────────────────────┤
-│  ESP32 3.3V  ──────┬──────────────────┬──────────────────────── │
-│                    │                  │                         │
-│               ADS1115 VDD        AD8232 3.3V                    │
-│                                                                 │
-│  ESP32 GND   ──────┴──────────────────┴──────────────────────── │
-│                    │                  │                         │
-│               ADS1115 GND        AD8232 GND                     │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    POWER DISTRIBUTION                               │
+├─────────────────────────────────────────────────────────────────────┤
+│  ESP32 3.3V  ──────┬──────────────────┬──────────────────────────   │
+│                    │                  │                             │
+│               ADS1115 VDD        AD8232 3.3V                        │
+│                                                                     │
+│  ESP32 GND   ──────┴──────────────────┴──────────────────────────   │
+│                    │                  │                             │
+│               ADS1115 GND        AD8232 GND                         │
+└─────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────┐
-│                    I²C CONNECTION                               │
-├─────────────────────────────────────────────────────────────────┤
-│  ESP32 GPIO 21 (SDA)  ─────────────  ADS1115 SDA                │
-│  ESP32 GPIO 22 (SCL)  ─────────────  ADS1115 SCL                │
-│  ADS1115 ADDR         ─────────────  GND (Address: 0x48)        │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    I²C CONNECTION                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│  ESP32 GPIO 21 (SDA)  ─────────────  ADS1115 SDA                    │
+│  ESP32 GPIO 22 (SCL)  ─────────────  ADS1115 SCL                    │
+│  ADS1115 ADDR         ─────────────  GND (Address: 0x48)            │
+└─────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────┐
-│                    SIGNAL CONNECTION                            │
-├─────────────────────────────────────────────────────────────────┤
-│  AD8232 OUTPUT  ───────────────────  ADS1115 A0                 │
-│  AD8232 LO+     ───────────────────  (Unconnected/Optional)     │
-│  AD8232 LO-     ───────────────────  (Unconnected/Optional)     │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SIGNAL CONNECTION                                │
+├─────────────────────────────────────────────────────────────────────┤
+│  AD8232 OUTPUT  ───────────────────  ADS1115 A0                     │
+│  AD8232 LO+     ───────────────────  (Unconnected/Optional)         │
+│  AD8232 LO-     ───────────────────  (Unconnected/Optional)         │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
